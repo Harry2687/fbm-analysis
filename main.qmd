@@ -7,6 +7,7 @@ format: html
 import pandas as pd
 import json
 import os
+import datetime as dt
 ```
 
 ```{python}
@@ -24,4 +25,21 @@ for data_file in data_files:
         data = json.load(file)
     json_data = pd.json_normalize(data['messages'])
     messenger_data = pd.concat([messenger_data, json_data])
+```
+
+```{python}
+messenger_data = messenger_data[[
+    'sender_name',
+    'timestamp_ms',
+    'content'
+]].sort_values(
+    'timestamp_ms',
+    ascending = False
+    )
+
+def convert_timestamp(timestamp_ms):
+    timestamp = dt.datetime.fromtimestamp(timestamp_ms/1000)
+    return timestamp
+
+messenger_data['timestamp'] = messenger_data['timestamp_ms'].apply(convert_timestamp)
 ```
