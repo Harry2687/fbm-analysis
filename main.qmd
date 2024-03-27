@@ -11,7 +11,7 @@ import datetime as dt
 ```
 
 ```{python}
-data_directory = 'data/message_data'
+data_directory = 'data/the_office'
 data_file_names = os.listdir(data_directory)
 data_files = [os.path.join(data_directory, data_file_name) 
              for data_file_name in data_file_names]
@@ -42,4 +42,16 @@ def convert_timestamp(timestamp_ms):
     return timestamp
 
 messenger_data['timestamp'] = messenger_data['timestamp_ms'].apply(convert_timestamp)
+
+sender_grouped_messages = (messenger_data
+                           .groupby('sender_name')
+                           ['content']
+                           .apply(lambda x: ' '.join(map(str, x)))
+                           .reset_index()
+                           )
+
+sender_grouped_messages['word_count'] = sender_grouped_messages['content'].str.split().str.len()
+
+sender_grouped_messages.sort_values('word_count', ascending=False)
 ```
+
