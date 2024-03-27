@@ -11,47 +11,36 @@ import datetime as dt
 ```
 
 ```{python}
-data_directory = 'data/the_office'
-data_file_names = os.listdir(data_directory)
-data_files = [os.path.join(data_directory, data_file_name) 
-             for data_file_name in data_file_names]
+import functions.fbmessenger as fbm
 ```
 
 ```{python}
-messenger_data = pd.DataFrame()
+the_office = fbm.ms_import_data('data/the_office')
 
-for data_file in data_files:
-    with open(data_file) as file:
-        data = json.load(file)
-    json_data = pd.json_normalize(data['messages'])
-    messenger_data = pd.concat([messenger_data, json_data])
-```
-
-```{python}
-messenger_data = messenger_data[[
+# subset and sort
+the_office = the_office[[
     'sender_name',
     'timestamp_ms',
     'content'
 ]].sort_values(
-    'timestamp_ms',
+    'timestamp_ms', 
     ascending = False
     )
 
-def convert_timestamp(timestamp_ms):
-    timestamp = dt.datetime.fromtimestamp(timestamp_ms/1000)
-    return timestamp
-
-messenger_data['timestamp'] = messenger_data['timestamp_ms'].apply(convert_timestamp)
-
-sender_grouped_messages = (messenger_data
-                           .groupby('sender_name')
-                           ['content']
-                           .apply(lambda x: ' '.join(map(str, x)))
-                           .reset_index()
-                           )
-
-sender_grouped_messages['word_count'] = sender_grouped_messages['content'].str.split().str.len()
-
-sender_grouped_messages.sort_values('word_count', ascending=False)
+# convert timestamp to datetime
+the_office['timestamp'] = the_office['timestamp_ms'].apply(fbm.ms_convert_timestamp)
+# drop timestamp column
+the_office = the_office.drop('timestamp_ms', axis = 1)
+# group messages by sender
+the_office_grouped_messages = (the_office
+                               .groupby('sender_name')
+                               ['content']
+                               .apply(lambda x: ' '.join(map(str, x)))
+                               .reset_index()
+                               )
+# get grouped string length
+the_office_grouped_messages['word_count'] = the_office_grouped_messages['content'].str.split().str.len()
+# sort by word count
+the_office_grouped_messages.sort_values('word_count', ascending = False)
 ```
 
