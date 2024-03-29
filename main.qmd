@@ -5,6 +5,7 @@ format: html
 
 ```{python}
 import pandas as pd
+import numpy as np
 import json
 import os
 import datetime as dt
@@ -17,20 +18,39 @@ import functions.fbmessenger as fbm
 ```{python}
 the_office = fbm.ms_import_data('data/the_office')
 
-# subset and sort
-the_office = the_office[[
-    'sender_name',
-    'timestamp_ms',
+# clean messages
+the_office['clean_content'] = (the_office[
     'content'
-]].sort_values(
-    'timestamp_ms', 
-    ascending = False
-    )
+].str.lower()
+ .str.strip()
+ .str.replace('[^a-z0-9\\s]', '', regex=True)
+ .str.replace('\\s{2,}', ' ', regex=True)
+ )
 
-# convert timestamp to datetime
-the_office['timestamp'] = the_office['timestamp_ms'].apply(fbm.ms_convert_timestamp)
-# drop timestamp column
-the_office = the_office.drop('timestamp_ms', axis = 1)
+the_office = the_office[~the_office['clean_content'].str.contains('reacted to your message')]
+
+the_office['split_content'] = the_office['clean_content'].str.split(' ')
+
+#the_office_msg_list = the_office.iloc[:100].groupby('sender_name')['clean_content'].sum().reset_index()
+
+search_word = 'nah'
+
+the_office_wcount = (the_office[[
+    'sender_name', 
+    'split_content'
+]].explode('split_content')
+  .query('split_content == @search_word')
+  .value_counts()
+  .reset_index()
+  .drop('split_content', axis=1)
+  .sort_values('count', ascending=False)
+  )
+
+the_office_wcount
+```
+
+
+```{python}
 # group messages by sender
 the_office_grouped_messages = (the_office
                                .groupby('sender_name')
@@ -43,4 +63,3 @@ the_office_grouped_messages['word_count'] = the_office_grouped_messages['content
 # sort by word count
 the_office_grouped_messages.sort_values('word_count', ascending = False)
 ```
-
