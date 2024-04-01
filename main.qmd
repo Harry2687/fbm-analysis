@@ -9,6 +9,7 @@ import numpy as np
 import json
 import os
 import datetime as dt
+import matplotlib as plt
 ```
 
 ```{python}
@@ -30,9 +31,9 @@ the_office['clean_content'] = (the_office[
 the_office = the_office[~the_office['clean_content'].str.contains('reacted to your message')]
 
 the_office['split_content'] = the_office['clean_content'].str.split(' ')
+```
 
-#the_office_msg_list = the_office.iloc[:100].groupby('sender_name')['clean_content'].sum().reset_index()
-
+```{python}
 search_word = 'nah'
 
 the_office_wcount = (the_office[[
@@ -49,6 +50,25 @@ the_office_wcount = (the_office[[
 the_office_wcount
 ```
 
+```{python}
+the_office['time_diff'] = the_office['timestamp'].diff().fillna(pd.Timedelta(seconds=0))
+the_office['time_diff'] = the_office['time_diff'].dt.total_seconds()
+
+conv_cutoff = 200
+
+the_office['new_conv'] = the_office['time_diff'] > conv_cutoff
+the_office['conv_num'] = 'Conv ' + the_office['new_conv'].cumsum().astype(str)
+
+time_diffs = the_office['time_diff']
+time_diffs = time_diffs[time_diffs < conv_cutoff]
+time_diffs.hist()
+
+np.percentile(the_office['time_diff'], [10, 25, 50, 75, 90])
+
+time_diffs_df = pd.DataFrame(time_diffs)
+time_diffs_df['cdf'] = time_diffs_df.rank(method='average', pct=True)
+time_diffs_df.sort_values('time_diff').plot(x = 'time_diff', y = 'cdf', grid = True)
+```
 
 ```{python}
 # group messages by sender
