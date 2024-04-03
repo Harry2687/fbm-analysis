@@ -10,6 +10,7 @@ import json
 import os
 import datetime as dt
 import matplotlib as plt
+import gensim as gs
 ```
 
 ```{python}
@@ -54,11 +55,30 @@ the_office_wcount
 the_office['time_diff'] = the_office['timestamp'].diff().fillna(pd.Timedelta(seconds=0))
 the_office['time_diff'] = the_office['time_diff'].dt.total_seconds()
 
-conv_cutoff = 200
+conv_cutoff = 600
 
 the_office['new_conv'] = the_office['time_diff'] > conv_cutoff
 the_office['conv_num'] = 'Conv ' + the_office['new_conv'].cumsum().astype(str)
 
+conversations = (the_office
+                 .groupby('conv_num')
+                 ['clean_content']
+                 .apply(lambda x: ' '.join(map(str, x)))
+                 .reset_index()
+                 )
+```
+
+```{python}
+documents = conversations['clean_content'].tolist()
+texts = [doc.split() for doc in documents]
+dictionary = gs.corpora.Dictionary(texts)
+corpus = [dictionary.doc2bow(text) for text in texts]
+ldamodel = gs.models.ldamodel.LdaModel(corpus, num_topics=10, id2word = dictionary, passes=20)
+for topic in ldamodel.print_topics(num_topics=10, num_words=5):
+    print(topic)
+```
+
+```{python}
 time_diffs = the_office['time_diff']
 time_diffs = time_diffs[time_diffs < conv_cutoff]
 time_diffs.hist()
