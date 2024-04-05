@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import pandas as pd
 import datetime as dt
 
@@ -31,3 +32,9 @@ def ms_import_data(directory):
 
     return messenger_data
 
+def remove_custom_stopwords(document, stopwords: list):
+    for word in stopwords:
+        pattern = r'\b'+word+r'\b'
+        document = re.sub(pattern, '', document).replace('  ', ' ')
+    
+    return document

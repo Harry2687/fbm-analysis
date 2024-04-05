@@ -4,10 +4,10 @@ format: html
 ---
 
 ```{python}
-import pandas as pd
-import numpy as np
 import json
 import os
+import pandas as pd
+import numpy as np
 import datetime as dt
 import matplotlib as plt
 import gensim as gs
@@ -17,89 +17,144 @@ import gensim as gs
 import functions.fbmessenger as fbm
 ```
 
+Import and clean data:
+1. Convert to lowercase.
+2. Letters and numbers only.
+3. Remove more than 2 spaces.
+4. Remove reactions.
+5. Remove standard and custom stopwords.
+6. Split string into list for word counts.
+
 ```{python}
-the_office = fbm.ms_import_data('data/the_office')
+chat_data = fbm.ms_import_data('data/the_office')
 
 # clean messages
-the_office['clean_content'] = (the_office[
-    'content'
-].str.lower()
- .str.strip()
- .str.replace('[^a-z0-9\\s]', '', regex=True)
- .str.replace('\\s{2,}', ' ', regex=True)
- )
+chat_data['clean_content'] = (
+    chat_data['content']
+    .str.lower()
+    .str.strip()
+    .str.replace('[^a-z0-9\\s]', '', regex=True)
+    .str.replace('\\s{2,}', ' ', regex=True)
+)
 
-the_office = the_office[~the_office['clean_content'].str.contains('reacted to your message')]
+chat_data = chat_data[
+    ~chat_data['clean_content']
+    .str.contains('reacted to your message')
+]
 
-the_office['split_content'] = the_office['clean_content'].str.split(' ')
+chat_data['split_content'] = (
+    chat_data['clean_content']
+    .str.split(' ')
+)
+
+custom_stopwords = [
+    'u', 
+    'lmao', 
+    'lol', 
+    'ur', 
+    'like', 
+    'yea', 
+    'thats', 
+    'nah', 
+    'im', 
+    'yeh', 
+    'dont' 
+    'yeah', 
+    'gonna', 
+    'didnt'
+]
+
+chat_data['clean_content'] = (
+    chat_data['clean_content']
+    .apply(gs.parsing.preprocessing.remove_stopwords)
+    .apply(fbm.remove_custom_stopwords, args=(custom_stopwords,))
+)
 ```
+
+Count number of occurances of specified word by sender.
 
 ```{python}
 search_word = 'nah'
 
-the_office_wcount = (the_office[[
-    'sender_name', 
-    'split_content'
-]].explode('split_content')
-  .query('split_content == @search_word')
-  .value_counts()
-  .reset_index()
-  .drop('split_content', axis=1)
-  .sort_values('count', ascending=False)
-  )
+chat_data_wcount = (
+    chat_data[['sender_name', 'split_content']]
+    .explode('split_content')
+    .query('split_content == @search_word')
+    .value_counts()
+    .reset_index()
+    .drop('split_content', axis=1)
+    .sort_values('count', ascending=False)
+)
 
-the_office_wcount
+chat_data_wcount
 ```
 
+Split messages into conversations which are separated by at least 10 minutes.
+
 ```{python}
-the_office['time_diff'] = the_office['timestamp'].diff().fillna(pd.Timedelta(seconds=0))
-the_office['time_diff'] = the_office['time_diff'].dt.total_seconds()
+chat_data['time_diff'] = (
+    chat_data['timestamp']
+    .diff()
+    .fillna(pd.Timedelta(seconds=0))
+)
+chat_data['time_diff'] = (
+    chat_data['time_diff']
+    .dt.total_seconds()
+)
 
 conv_cutoff = 600
 
-the_office['new_conv'] = the_office['time_diff'] > conv_cutoff
-the_office['conv_num'] = 'Conv ' + the_office['new_conv'].cumsum().astype(str)
+chat_data['new_conv'] = chat_data['time_diff'] > conv_cutoff
+chat_data['conv_num'] = 'Conv ' + (
+    chat_data['new_conv']
+    .cumsum()
+    .astype(str)
+)
 
-conversations = (the_office
-                 .groupby('conv_num')
-                 ['clean_content']
-                 .apply(lambda x: ' '.join(map(str, x)))
-                 .reset_index()
-                 )
+conversations = (
+    chat_data
+    .groupby('conv_num')
+    ['clean_content']
+    .apply(lambda x: ' '.join(map(str, x)))
+    .reset_index()
+)
 ```
 
+Run LDA, where documents are the previously defined conversations.
+
 ```{python}
-documents = conversations['clean_content'].tolist()
+documents = (
+    conversations['clean_content']
+    .tolist()
+)
 texts = [doc.split() for doc in documents]
 dictionary = gs.corpora.Dictionary(texts)
 corpus = [dictionary.doc2bow(text) for text in texts]
-ldamodel = gs.models.ldamodel.LdaModel(corpus, num_topics=10, id2word = dictionary, passes=20)
+ldamodel = gs.models.ldamodel.LdaModel(
+    corpus,
+    num_topics=10, 
+    id2word=dictionary, 
+    passes=20
+)
 for topic in ldamodel.print_topics(num_topics=10, num_words=5):
     print(topic)
 ```
 
 ```{python}
-time_diffs = the_office['time_diff']
-time_diffs = time_diffs[time_diffs < conv_cutoff]
-time_diffs.hist()
-
-np.percentile(the_office['time_diff'], [10, 25, 50, 75, 90])
-
-time_diffs_df = pd.DataFrame(time_diffs)
-time_diffs_df['cdf'] = time_diffs_df.rank(method='average', pct=True)
-time_diffs_df.sort_values('time_diff').plot(x = 'time_diff', y = 'cdf', grid = True)
-```
-
-```{python}
 # group messages by sender
-the_office_grouped_messages = (the_office
-                               .groupby('sender_name')
-                               ['content']
-                               .apply(lambda x: ' '.join(map(str, x)))
-                               .reset_index()
-                               )
+chat_data_grouped_messages = (
+    chat_data
+    .groupby('sender_name')
+    ['content']
+    .apply(lambda x: ' '.join(map(str, x)))
+    .reset_index()
+)
 # get grouped string length
-the_office_grouped_messages['word_count'] = the_office_grouped_messages['content'].str.split().str.len()
+chat_data_grouped_messages['word_count'] = (
+    chat_data_grouped_messages['content']
+    .str.split()
+    .str.len()
+)
 # sort by word count
-the_office_grouped_messages.sort_values('word_count', ascending = False)
+chat_data_grouped_messages.sort_values('word_count', ascending = False)
 ```
