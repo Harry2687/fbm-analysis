@@ -3,8 +3,9 @@ import json
 import re
 import pandas as pd
 import datetime as dt
+import gensim
 
-def ms_import_data(directory):
+def ms_import_data(directory: str) -> pd.DataFrame:
     data_file_names = os.listdir(directory)
     data_files = [os.path.join(directory, data_file_name) for data_file_name in data_file_names]
 
@@ -16,11 +17,15 @@ def ms_import_data(directory):
         json_data = pd.json_normalize(data['messages'])
         messenger_data = pd.concat([messenger_data, json_data])
 
-    messenger_data = messenger_data[[
-        'sender_name',
-        'timestamp_ms',
-        'content'
-    ]].dropna().sort_values('timestamp_ms', ascending=True)
+    messenger_data = (
+        messenger_data[[
+            'sender_name',
+            'timestamp_ms',
+            'content'
+        ]]
+        .dropna()
+        .sort_values('timestamp_ms', ascending=True)
+    )
 
     messenger_data['timestamp'] = pd.to_datetime(messenger_data['timestamp_ms'], unit='ms')
 
@@ -32,7 +37,7 @@ def ms_import_data(directory):
 
     return messenger_data
 
-def remove_custom_stopwords(document, stopwords: list):
+def remove_custom_stopwords(document: str, stopwords: list) -> str:
     for word in stopwords:
         pattern = r'\b'+word+r'\b'
         document = re.sub(pattern, '', document).replace('  ', ' ')

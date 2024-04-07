@@ -18,36 +18,34 @@ import gensim as gs
 import functions.fbmessenger as fbm
 ```
 
-Import and clean data:
-1. Convert to lowercase.
-2. Letters and numbers only.
-3. Remove more than 2 spaces.
-4. Remove reactions.
-5. Remove standard and custom stopwords.
-6. Split string into list for word counts.
+Import and clean data.
 
 ```{python}
 chat_data = fbm.ms_import_data('data/the_office')
 
-# clean messages
+# standard cleaning stuff
 chat_data['clean_content'] = (
     chat_data['content']
     .str.lower()
     .str.strip()
-    .str.replace('[^a-z0-9\\s]', '', regex=True)
+    .str.replace('[^a-z\\s]', '', regex=True)
     .str.replace('\\s{2,}', ' ', regex=True)
 )
 
-chat_data = chat_data[
-    ~chat_data['clean_content']
-    .str.contains('reacted to your message')
+# specify which messages are actually chat actions which aren't part of the conversation
+chat_actions = [
+    'reacted to your message'
 ]
 
-chat_data['split_content'] = (
-    chat_data['clean_content']
-    .str.split(' ')
-)
+# remove chat actions
+chat_data = chat_data[
+    ~chat_data['clean_content']
+    .str.contains(
+        '|'.join(chat_actions)
+    )
+]
 
+# define stopwords which are not included in gensim
 custom_stopwords = [
     'u', 
     'lmao', 
@@ -59,31 +57,46 @@ custom_stopwords = [
     'nah', 
     'im', 
     'yeh', 
-    'dont' 
+    'dont',
     'yeah', 
     'gonna', 
-    'didnt'
+    'didnt',
+    'idk',
+    'got',
+    'r',
+    'sure',
+    'come',
+    'stuff'
+    'k'
 ]
 
-chat_data['clean_content'] = (
+# remove gensim and custom stopwords
+chat_data['clean_content_rmstopwords'] = (
     chat_data['clean_content']
     .apply(gs.parsing.preprocessing.remove_stopwords)
     .apply(fbm.remove_custom_stopwords, args=(custom_stopwords,))
+    .str.strip()
+    .str.replace('\\s{2,}', ' ', regex=True)
 )
 ```
 
 Count number of occurances of specified word by sender.
 
 ```{python}
+chat_data['clean_content_splitlist'] = (
+    chat_data['clean_content']
+    .str.split(' ')
+)
+
 search_word = 'nah'
 
 chat_data_wcount = (
-    chat_data[['sender_name', 'split_content']]
-    .explode('split_content')
-    .query('split_content == @search_word')
+    chat_data[['sender_name', 'clean_content_splitlist']]
+    .explode('clean_content_splitlist')
+    .query('clean_content_splitlist == @search_word')
     .value_counts()
     .reset_index()
-    .drop('split_content', axis=1)
+    .drop('clean_content_splitlist', axis=1)
     .sort_values('count', ascending=False)
 )
 
@@ -93,6 +106,7 @@ chat_data_wcount
 Split messages into conversations which are separated by at least 10 minutes.
 
 ```{python}
+# calculate difference between each message
 chat_data['time_diff'] = (
     chat_data['timestamp']
     .diff()
@@ -103,8 +117,10 @@ chat_data['time_diff'] = (
     .dt.total_seconds()
 )
 
+# specify how long until message group becomes a new conversation
 conv_cutoff = 600
 
+# group dataframe into different conversations based on cutoff value
 chat_data['new_conv'] = chat_data['time_diff'] > conv_cutoff
 chat_data['conv_num'] = 'Conv ' + (
     chat_data['new_conv']
@@ -112,11 +128,14 @@ chat_data['conv_num'] = 'Conv ' + (
     .astype(str)
 )
 
+# join together messages in the same coversation
 conversations = (
     chat_data
     .groupby('conv_num')
-    ['clean_content']
+    ['clean_content_rmstopwords']
     .apply(lambda x: ' '.join(map(str, x)))
+    .str.strip()
+    .str.replace('\\s{2,}', ' ', regex=True)
     .reset_index()
 )
 ```
@@ -125,7 +144,7 @@ Run LDA, where documents are the previously defined conversations.
 
 ```{python}
 documents = (
-    conversations['clean_content']
+    conversations['clean_content_rmstopwords']
     .tolist()
 )
 texts = [doc.split() for doc in documents]
@@ -133,11 +152,11 @@ dictionary = gs.corpora.Dictionary(texts)
 corpus = [dictionary.doc2bow(text) for text in texts]
 ldamodel = gs.models.ldamodel.LdaModel(
     corpus,
-    num_topics=20,
+    num_topics=5,
     id2word=dictionary,
     passes=20
 )
-for topic in ldamodel.print_topics(num_topics=10, num_words=5):
+for topic in ldamodel.print_topics(num_topics=10, num_words=10):
     print(topic)
 ```
 
@@ -155,41 +174,21 @@ ldamodel_coherence.get_coherence()
 Hyperparameter tuning
 
 ```{python}
-alpha_values = np.arange(0.1, 1, 0.1)
-beta_values = np.arange(0.1, 1, 0.1)
-n_topics_values = np.arange(2, 21, 1)
-
-tuning_parameters = (
-    np.array(
-        np.meshgrid(
-            alpha_values,
-            beta_values,
-            n_topics_values
-        )
-    )
-    .T
-    .reshape(-1, 3)
-)
+n_topics_values = np.arange(2, 11, 1)
 
 tuning_results = pd.DataFrame(
     columns=[
-        'Alpha',
-        'Beta',
         'n_topics',
         'umass_coherence'
     ]
 )
 
 start_time = time.time()
-for index in range(2):
-    alpha = tuning_parameters[index][0]
-    beta = tuning_parameters[index][1]
-    n_topics = tuning_parameters[index][2]
+for index in range(len(n_topics_values)):
+    n_topics = n_topics_values[index]
 
     ldamodel = gs.models.ldamodel.LdaModel(
         corpus=corpus,
-        alpha=alpha,
-        eta=beta,
         num_topics=n_topics,
         id2word=dictionary,
         passes=20
@@ -205,8 +204,6 @@ for index in range(2):
     umass_coherence = ldamodel_coherence.get_coherence()
 
     tuning_results.loc[index] = (
-        [alpha] + 
-        [beta] + 
         [n_topics] + 
         [umass_coherence]
     )
@@ -216,24 +213,4 @@ execution_time = end_time - start_time
 tuning_results = tuning_results.sort_values('umass_coherence', ascending=False)
 
 tuning_results
-execution_time
-```
-
-```{python}
-# group messages by sender
-chat_data_grouped_messages = (
-    chat_data
-    .groupby('sender_name')
-    ['content']
-    .apply(lambda x: ' '.join(map(str, x)))
-    .reset_index()
-)
-# get grouped string length
-chat_data_grouped_messages['word_count'] = (
-    chat_data_grouped_messages['content']
-    .str.split()
-    .str.len()
-)
-# sort by word count
-chat_data_grouped_messages.sort_values('word_count', ascending = False)
 ```
