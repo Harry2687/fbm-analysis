@@ -1,0 +1,134 @@
+---
+title: "Retrieval Augmented Generation"
+format: html
+---
+
+```{python}
+import json
+import os
+import time
+import pandas as pd
+import numpy as np
+import datetime as dt
+import matplotlib as plt
+
+import functions.fbmessenger as fbm
+```
+
+```{python}
+chat_data = fbm.ms_import_data('data/the_office')
+
+# standard cleaning stuff
+chat_data['clean_content'] = (
+    chat_data['content']
+    .str.strip()
+    .str.replace('[^a-zA-Z0-9\\s]', '', regex=True)
+    .str.replace('\\s{2,}', ' ', regex=True)
+)
+
+chat_data['conv_text'] = (
+    chat_data['sender_name'] + 
+    ' at ' + 
+    chat_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S') + 
+    ': ' + 
+    chat_data['clean_content']
+)
+
+chat_content = chat_data[['conv_text']]
+chat_content.to_csv('data.txt', index=False, header=False)
+```
+
+```{python}
+from langchain_community.vectorstores import Chroma
+from langchain_community.chat_models import ChatOllama
+from langchain_community.embeddings import FastEmbedEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain.schema.output_parser import StrOutputParser
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema.runnable import RunnablePassthrough
+from langchain.prompts import PromptTemplate
+from langchain.vectorstores.utils import filter_complex_metadata
+```
+
+```{python}
+class ChatFbMessenger:
+    vector_store = None
+    retriever = None
+    chain = None
+
+    def __init__(self):
+        self.model = ChatOllama(model="llama3.1", show_progress=True)
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=100)
+        self.prompt = PromptTemplate.from_template(
+            """
+            <s> [INST] You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. [/INST] </s> 
+            [INST] Question: {question} 
+            Context: {context} 
+            Answer: [/INST]
+            """
+        )
+
+    def ingest(self, pdf_file_path: str):
+        docs = TextLoader(file_path=pdf_file_path).load()
+        chunks = self.text_splitter.split_documents(docs)
+        chunks = filter_complex_metadata(chunks)
+
+        vector_store = Chroma.from_documents(
+            documents=chunks, 
+            embedding=OllamaEmbeddings(model="nomic-embed-text"),
+            persist_directory='./chroma_db'
+        )
+        self.retriever = vector_store.as_retriever(
+            search_type="similarity_score_threshold",
+            search_kwargs={
+                "k": 5,
+                "score_threshold": 0.1,
+            },
+        )
+
+        self.chain = ({"context": self.retriever, "question": RunnablePassthrough()}
+                      | self.prompt
+                      | self.model
+                      | StrOutputParser())
+
+    def ingest_db(self, db_file_path: str):
+        vector_store = Chroma(
+            persist_directory=db_file_path,
+            embedding_function=OllamaEmbeddings(model='nomic-embed-text')
+        )
+        self.retriever = vector_store.as_retriever(
+            search_type="similarity_score_threshold",
+            search_kwargs={
+                "k": 5,
+                "score_threshold": 0.001,
+            },
+        )
+
+        self.chain = ({"context": self.retriever, "question": RunnablePassthrough()}
+                      | self.prompt
+                      | self.model
+                      | StrOutputParser())
+
+    def retrieve_docs(self, query: str):
+        return self.retriever
+
+    def ask(self, query: str):
+        if not self.chain:
+            return "Please, add a Text document first."
+
+        return self.chain.invoke(query)
+
+    def clear(self):
+        self.vector_store = None
+        self.retriever = None
+        self.chain = None
+```
+
+
+```{python}
+theoffice = ChatFbMessenger()
+theoffice.ingest_db('./chroma_db')
+theoffice.retrieve_docs()
+# theoffice.ask('What are some topics that Harry and Dhruv discuss?')
+```

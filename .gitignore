@@ -1,4 +1,5 @@
 .DS_Store
+/.venv
+/chroma_db
 /data
 /functions/__pycache__
-/tests

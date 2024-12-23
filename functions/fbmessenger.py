@@ -3,7 +3,6 @@ import json
 import re
 import pandas as pd
 import datetime as dt
-import gensim
 
 def ms_import_data(directory: str) -> pd.DataFrame:
     data_file_names = os.listdir(directory)
