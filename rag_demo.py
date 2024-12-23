@@ -1,47 +1,3 @@
----
-title: "Retrieval Augmented Generation"
-format: html
----
-
-```{python}
-import functions.fbmessenger as fbm
-```
-
-# Convert json files to single txt file.
-
-```{python}
-chat_data = fbm.ms_import_data('data/the_office')
-
-# standard cleaning stuff
-chat_data['clean_content'] = (
-    chat_data['content']
-    .str.strip()
-    .str.replace('[^a-zA-Z0-9\\s]', '', regex=True)
-    .str.replace('\\s{2,}', ' ', regex=True)
-)
-
-# export with timestamps
-chat_data['conv_text'] = (
-    chat_data['sender_name'] + 
-    ' at ' + 
-    chat_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S') + 
-    ': ' + 
-    chat_data['clean_content']
-)
-chat_content = chat_data[['conv_text']]
-chat_content.to_csv('source_documents/chatlog_w_timestamp.txt', index=False, header=False)
-
-# export without timestamps
-chat_data['conv_text'] = (
-    chat_data['sender_name'] + 
-    ': ' + 
-    chat_data['clean_content']
-)
-chat_content = chat_data[['conv_text']]
-chat_content.to_csv('source_documents/chatlog.txt', index=False, header=False)
-```
-
-```{python}
 from langchain_community.vectorstores import Chroma
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings import FastEmbedEmbeddings
@@ -52,9 +8,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.prompts import PromptTemplate
 from langchain.vectorstores.utils import filter_complex_metadata
-```
 
-```{python}
 class ChatFbMessenger:
     vector_store = None
     retriever = None
@@ -123,18 +77,8 @@ class ChatFbMessenger:
         self.vector_store = None
         self.retriever = None
         self.chain = None
-```
 
-```{python}
 theoffice = ChatFbMessenger()
-theoffice.ingest(
-    file_path='source_documents/chatlog.txt', 
-    db_path='databases/chatlog_vectordb'
-)
-
-theoffice_wts = ChatFbMessenger()
-theoffice_wts.ingest(
-    file_path='source_documents/chatlog_w_timestamp.txt', 
-    db_path='databases/chatlog_wts_vectordb'
-)
-```
+theoffice.ingest_db('databases/chatlog_vectordb')
+query = input('What would you like to know about The Office?\n')
+print(theoffice.ask(query))
