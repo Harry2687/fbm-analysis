@@ -7,6 +7,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores.utils import filter_complex_metadata
+import chromadb
 
 class ChatFBM:
     def __init__(self, model_name: str, context_size: int=5):
@@ -26,7 +27,7 @@ class ChatFBM:
         docs = TextLoader(file_path=file_path).load()
         chunks = text_splitter.split_documents(docs)
         chunks = filter_complex_metadata(chunks)
-        chunk_limit = 5461
+        chunk_limit = chromadb.Client().get_max_batch_size()
 
         if len(chunks) > chunk_limit:
             def split_list(input_list, chunk_size):
