@@ -41,71 +41,79 @@ chat_content.to_csv('source_documents/chatlog.txt', index=False, header=False)
 
 # Test RAG with different settings
 
+Settings to test:
+- Chunk size
+    - 1000, 750, 500, 250
+- Chunk overlap (set this to 10% of chunk size)
+    - 100, 75, 50, 25
+- Number of chunks given as context
+- LLM model
+
+Vector databases need to be set up for the first 2 variables
+
 ```{python}
 from modules.models import ChatFBM
 from modules.rag_demo import rag_demo
 import os
 ```
 
-## Default chunk length and overlap, 10 chunks context
+## Create vector databases for different chunk sizes
 
 ```{python}
-theoffice = ChatFBM('llama3.1')
-db_path = 'databases/chatlog_vectordb'
-
-if not os.path.exists(db_path):
-    theoffice.ingest(file_path='source_documents/chatlog.txt', db_path=db_path)
-
-theoffice.load_db(db_path)
-
-# Check number of chunks in db
-len(theoffice.vector_store.get()['documents'])
+chunk_sizes = [1000, 750, 500, 250]
+for size in chunk_sizes:
+    model = ChatFBM()
+    db_path = f'databases/chatlog_vectordb_chunksize{size}'
+    overlap = int(0.1*size)
+    
+    if not os.path.exists(db_path):
+        model.ingest(
+            file_path='source_documents/chatlog.txt',
+            db_path=db_path,
+            chunk_size=size,
+            chunk_overlap=overlap
+        )
 ```
 
+## Check number of chunks for each chunk size
+
 ```{python}
-rag_demo('What games does Harry talk about?', 'databases/chatlog_vectordb')
+chunk_sizes = [1000, 750, 500, 250]
+for size in chunk_sizes:
+    db_path = f'databases/chatlog_vectordb_chunksize{size}'
+    
+    if os.path.exists(db_path):
+        model = ChatFBM()
+        model.load_db(db_path)
+        n_chunks = len(model.vector_store.get()['documents'])
+        print(f'Number of chunks for chunk size {size}: {n_chunks}')
 ```
 
-```{python}
-theoffice = ChatFBM('llama3.1')
-db_path = 'databases/chatlog_chunk100'
-
-if not os.path.exists(db_path):
-    theoffice.ingest(
-        file_path='source_documents/chatlog.txt', 
-        db_path=db_path, 
-        chunk_size=100, 
-        chunk_overlap=10
-    )
-
-theoffice.load_db(db_path)
-
-# Check number of chunks in db
-len(theoffice.vector_store.get()['documents'])
-```
+## Test queries for each chunk size
 
 ```{python}
-rag_demo('What games does Harry talk about?', 'databases/chatlog_chunk100')
-```
+chunk_sizes = [1000, 750, 500, 250]
+queries = [
+    "What games does Harry play?",
+    "What topics does Harry talk about with Dhruv?",
+    "What topics does Harry talk about with Mansoor?",
+    "Who would you consider to be the funniest?",
+    "Who would you consider to be the smartest?"
+]
 
-```{python}
-theoffice = ChatFBM('llama3.1')
-db_path = 'databases/chatlog_chunk500'
+for size in chunk_sizes:
+    context_size = round(5000/size)
+    db_path = f'databases/chatlog_vectordb_chunksize{size}'
+    query = 'Would you consider Mansoor to be haram?'
 
-if not os.path.exists(db_path):
-    theoffice.ingest(
-        file_path='source_documents/chatlog.txt', 
-        db_path=db_path, 
-        chunk_size=500, 
-        chunk_overlap=50
-    )
-
-theoffice.load_db(db_path)
-
-# Check number of chunks in db
-len(theoffice.vector_store.get()['documents'])
-```
-
-```{python}
-rag_demo('What games does Harry talk about?', 'databases/chatlog_chunk500', context_size=12)
+    print(f'Chunk size {size}, with {context_size} chunks for context')
+    for query in queries:
+        print(f'Query: {query}')
+        rag_demo(
+            query=query,
+            db_file_path=db_path,
+            context_size=context_size,
+            print_docs=False
+        )
+        print('\n')
 ```

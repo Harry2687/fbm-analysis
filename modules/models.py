@@ -10,7 +10,7 @@ from langchain_community.vectorstores.utils import filter_complex_metadata
 import chromadb
 
 class ChatFBM:
-    def __init__(self, model_name: str, context_size: int=5):
+    def __init__(self, model_name: str='llama3.1', context_size: int=5):
         self.model = ChatOllama(model=model_name, show_progress=True)
         self.prompt = PromptTemplate.from_template(
             '''
