@@ -3,14 +3,12 @@ title: "Retrieval Augmented Generation"
 format: html
 ---
 
-```{python}
-import functions.fbmessenger as fbm
-```
-
 # Convert json files to single txt file.
 
 ```{python}
-chat_data = fbm.ms_import_data('data/the_office')
+import modules.preprocessing as prep
+
+chat_data = prep.ms_import_data('data/the_office')
 
 # standard cleaning stuff
 chat_data['clean_content'] = (
@@ -41,82 +39,73 @@ chat_content = chat_data[['conv_text']]
 chat_content.to_csv('source_documents/chatlog.txt', index=False, header=False)
 ```
 
+# Test RAG with different settings
+
 ```{python}
-from langchain_chroma.vectorstores import Chroma
-from langchain_ollama.chat_models import ChatOllama
-from langchain_ollama.embeddings import OllamaEmbeddings
-from langchain.schema.output_parser import StrOutputParser
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema.runnable import RunnablePassthrough
-from langchain.prompts import PromptTemplate
-from langchain_community.vectorstores.utils import filter_complex_metadata
+from modules.models import ChatFBM
+from modules.rag_demo import rag_demo
+import os
+```
+
+## Default chunk length and overlap, 10 chunks context
+
+```{python}
+theoffice = ChatFBM('llama3.1')
+db_path = 'databases/chatlog_vectordb'
+
+if not os.path.exists(db_path):
+    theoffice.ingest(file_path='source_documents/chatlog.txt', db_path=db_path)
+
+theoffice.load_db(db_path)
+
+# Check number of chunks in db
+len(theoffice.vector_store.get()['documents'])
 ```
 
 ```{python}
-class ChatFbMessenger:
-    def __init__(self, model_name: str, context_size: int=5):
-        self.model = ChatOllama(model=model_name, show_progress=True)
-        self.prompt = PromptTemplate.from_template(
-            '''
-            [INST]<<SYS>> You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.<</SYS>> 
-            Question: {question} 
-            Context: {context} 
-            Answer: [/INST]
-            '''
-        )
-        self.context_size = context_size
-
-    def ingest(self, file_path: str, db_path: str, chunk_size: int=1024, chunk_overlap: int=100):
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        docs = TextLoader(file_path=file_path).load()
-        chunks = text_splitter.split_documents(docs)
-        chunks = filter_complex_metadata(chunks)
-
-        Chroma.from_documents(
-            documents=chunks, 
-            embedding=OllamaEmbeddings(model='nomic-embed-text'),
-            persist_directory=db_path
-        )
-
-    def load_db(self, db_file_path: str):
-        self.vector_store = Chroma(
-            persist_directory=db_file_path,
-            embedding_function=OllamaEmbeddings(model='nomic-embed-text')
-        )
-        self.retriever = self.vector_store.as_retriever(
-            search_kwargs={
-                'k': self.context_size,
-            },
-        )
-
-        self.chain = ({'context': self.retriever, 'question': RunnablePassthrough()}
-                      | self.prompt
-                      | self.model
-                      | StrOutputParser())
-
-    def retrieve_docs(self, query: str):
-        results = self.vector_store.similarity_search(query=query, k=self.context_size)
-
-        print('Context search results:\n')
-        for i, result in enumerate(results):
-            print(f'Result {i+1}:')
-            print(result)
-            print('\n')
-
-    def ask(self, query: str):
-        if not self.chain:
-            return 'Please, add a Text document first.'
-
-        return self.chain.invoke(query)
-
-    def clear(self):
-        self.vector_store = None
-        self.retriever = None
-        self.chain = None
+rag_demo('What games does Harry talk about?', 'databases/chatlog_vectordb')
 ```
 
 ```{python}
-theoffice = ChatFbMessenger('llama3.1', 10)
-theoffice.ingest(file_path='source_documents/chatlog.txt', db_path='databases/chatlog_chunk100', chunk_size=100, chunk_overlap=10)
+theoffice = ChatFBM('llama3.1')
+db_path = 'databases/chatlog_chunk100'
+
+if not os.path.exists(db_path):
+    theoffice.ingest(
+        file_path='source_documents/chatlog.txt', 
+        db_path=db_path, 
+        chunk_size=100, 
+        chunk_overlap=10
+    )
+
+theoffice.load_db(db_path)
+
+# Check number of chunks in db
+len(theoffice.vector_store.get()['documents'])
+```
+
+```{python}
+rag_demo('What games does Harry talk about?', 'databases/chatlog_chunk100')
+```
+
+```{python}
+theoffice = ChatFBM('llama3.1')
+db_path = 'databases/chatlog_chunk500'
+
+if not os.path.exists(db_path):
+    theoffice.ingest(
+        file_path='source_documents/chatlog.txt', 
+        db_path=db_path, 
+        chunk_size=500, 
+        chunk_overlap=50
+    )
+
+theoffice.load_db(db_path)
+
+# Check number of chunks in db
+len(theoffice.vector_store.get()['documents'])
+```
+
+```{python}
+rag_demo('What games does Harry talk about?', 'databases/chatlog_chunk500', context_size=12)
 ```

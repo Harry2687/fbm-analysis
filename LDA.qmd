@@ -15,13 +15,13 @@ import gensim as gs
 ```
 
 ```{python}
-import functions.fbmessenger as fbm
+import modules.preprocessing as prep
 ```
 
 Import and clean data.
 
 ```{python}
-chat_data = fbm.ms_import_data('data/the_office')
+chat_data = prep.ms_import_data('data/the_office')
 
 # standard cleaning stuff
 chat_data['clean_content'] = (
@@ -74,7 +74,7 @@ custom_stopwords = [
 chat_data['clean_content_rmstopwords'] = (
     chat_data['clean_content']
     .apply(gs.parsing.preprocessing.remove_stopwords)
-    .apply(fbm.remove_custom_stopwords, args=(custom_stopwords,))
+    .apply(prep.remove_custom_stopwords, args=(custom_stopwords,))
     .str.strip()
     .str.replace('\\s{2,}', ' ', regex=True)
 )

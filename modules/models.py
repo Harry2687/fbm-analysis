@@ -8,7 +8,7 @@ from langchain.schema.runnable import RunnablePassthrough
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores.utils import filter_complex_metadata
 
-class ChatFbMessenger:
+class ChatFBM:
     def __init__(self, model_name: str, context_size: int=5):
         self.model = ChatOllama(model=model_name, show_progress=True)
         self.prompt = PromptTemplate.from_template(
@@ -26,12 +26,27 @@ class ChatFbMessenger:
         docs = TextLoader(file_path=file_path).load()
         chunks = text_splitter.split_documents(docs)
         chunks = filter_complex_metadata(chunks)
+        chunk_limit = 5461
 
-        Chroma.from_documents(
-            documents=chunks, 
-            embedding=OllamaEmbeddings(model='nomic-embed-text'),
-            persist_directory=db_path
-        )
+        if len(chunks) > chunk_limit:
+            def split_list(input_list, chunk_size):
+                for i in range(0, len(input_list), chunk_size):
+                    yield input_list[i:i + chunk_size]
+            
+            split_chunks = split_list(chunks, chunk_limit)
+
+            for doc_chunk in split_chunks:
+                Chroma.from_documents(
+                    documents=doc_chunk,
+                    embedding=OllamaEmbeddings(model='nomic-embed-text'),
+                    persist_directory=db_path
+                )
+        else:
+            Chroma.from_documents(
+                documents=chunks, 
+                embedding=OllamaEmbeddings(model='nomic-embed-text'),
+                persist_directory=db_path
+            )
 
     def load_db(self, db_file_path: str):
         self.vector_store = Chroma(
@@ -68,10 +83,3 @@ class ChatFbMessenger:
         self.vector_store = None
         self.retriever = None
         self.chain = None
-
-theoffice = ChatFbMessenger('llama3.1', 1)
-theoffice.load_db('databases/chatlog_vectordb')
-query = input('What would you like to know about The Office? ')
-theoffice.retrieve_docs(query)
-print('LLM response:')
-print(theoffice.ask(query))
