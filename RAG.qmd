@@ -7,36 +7,7 @@ format: html
 
 ```{python}
 import modules.preprocessing as prep
-
-chat_data = prep.ms_import_data('data/the_office')
-
-# standard cleaning stuff
-chat_data['clean_content'] = (
-    chat_data['content']
-    .str.strip()
-    .str.replace('[^a-zA-Z0-9\\s]', '', regex=True)
-    .str.replace('\\s{2,}', ' ', regex=True)
-)
-
-# export with timestamps
-chat_data['conv_text'] = (
-    chat_data['sender_name'] + 
-    ' at ' + 
-    chat_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S') + 
-    ': ' + 
-    chat_data['clean_content']
-)
-chat_content = chat_data[['conv_text']]
-chat_content.to_csv('source_documents/chatlog_w_timestamp.txt', index=False, header=False)
-
-# export without timestamps
-chat_data['conv_text'] = (
-    chat_data['sender_name'] + 
-    ': ' + 
-    chat_data['clean_content']
-)
-chat_content = chat_data[['conv_text']]
-chat_content.to_csv('source_documents/chatlog.txt', index=False, header=False)
+prep.convert_to_txt('data/the_office', 'source_documents/chatlog.txt')
 ```
 
 # Test RAG with different settings

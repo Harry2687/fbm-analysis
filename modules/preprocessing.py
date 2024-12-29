@@ -41,3 +41,32 @@ def remove_custom_stopwords(document: str, stopwords: list) -> str:
         document = re.sub(pattern, '', document).replace('  ', ' ')
     
     return document
+
+def convert_to_txt(source: str, output: str, timestamp: bool=False):
+    pd_data = ms_import_data(source)
+
+    pd_data['clean_content'] = (
+        pd_data['content']
+        .str.strip()
+        .str.replace('[^a-zA-Z0-9\\s]', '', regex=True)
+        .str.replace('\\s{2,}', ' ', regex=True)
+    )
+
+    if timestamp:
+        pd_data['conv_text'] = (
+            pd_data['sender_name'] + 
+            ' at ' + 
+            pd_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S') + 
+            ': ' + 
+            pd_data['clean_content']
+        )
+        chat_content = pd_data[['conv_text']]
+        chat_content.to_csv(output, index=False, header=False)
+    else:
+        pd_data['conv_text'] = (
+            pd_data['sender_name'] + 
+            ': ' + 
+            pd_data['clean_content']
+        )
+        chat_content = pd_data[['conv_text']]
+        chat_content.to_csv(output, index=False, header=False)
