@@ -4,149 +4,35 @@ format: html
 ---
 
 ```{python}
-import json
-import os
-import time
-import pandas as pd
-import numpy as np
-import datetime as dt
-import matplotlib as plt
-import gensim as gs
-```
-
-```{python}
 import modules.preprocessing as prep
+import gensim as gs
 ```
 
 Import and clean data.
 
 ```{python}
 chat_data = prep.ms_import_data('data/the_office')
-
-# standard cleaning stuff
-chat_data['clean_content'] = (
-    chat_data['content']
-    .str.lower()
-    .str.strip()
-    .str.replace('[^a-z\\s]', '', regex=True)
-    .str.replace('\\s{2,}', ' ', regex=True)
-)
-
-# specify which messages are actually chat actions which aren't part of the conversation
-chat_actions = [
-    'reacted to your message'
-]
-
-# remove chat actions
-chat_data = chat_data[
-    ~chat_data['clean_content']
-    .str.contains(
-        '|'.join(chat_actions)
-    )
-]
-
-# define stopwords which are not included in gensim
-custom_stopwords = [
-    'u', 
-    'lmao', 
-    'lol', 
-    'ur', 
-    'like', 
-    'yea', 
-    'thats', 
-    'nah', 
-    'im', 
-    'yeh', 
-    'dont',
-    'yeah', 
-    'gonna', 
-    'didnt',
-    'idk',
-    'got',
-    'r',
-    'sure',
-    'come',
-    'stuff'
-    'k'
-]
-
-# remove gensim and custom stopwords
-chat_data['clean_content_rmstopwords'] = (
-    chat_data['clean_content']
-    .apply(gs.parsing.preprocessing.remove_stopwords)
-    .apply(prep.remove_custom_stopwords, args=(custom_stopwords,))
-    .str.strip()
-    .str.replace('\\s{2,}', ' ', regex=True)
-)
+chat_data = prep.lda_preprocess(chat_data, 'content', 'clean_content')
 ```
 
 Count number of occurances of specified word by sender.
 
 ```{python}
-chat_data['clean_content_splitlist'] = (
-    chat_data['clean_content']
-    .str.split(' ')
-)
-
-search_word = 'nah'
-
-chat_data_wcount = (
-    chat_data[['sender_name', 'clean_content_splitlist']]
-    .explode('clean_content_splitlist')
-    .query('clean_content_splitlist == @search_word')
-    .value_counts()
-    .reset_index()
-    .drop('clean_content_splitlist', axis=1)
-    .sort_values('count', ascending=False)
-)
-
-chat_data_wcount
+chat_data_with_stopwords = prep.ms_import_data('data/the_office')
+chat_data_with_stopwords = prep.lda_preprocess(chat_data_with_stopwords, 'content', 'clean_content', False)
+word_count = prep.sender_wordcount(chat_data_with_stopwords, 'coc')
+word_count
 ```
 
 Split messages into conversations which are separated by at least 10 minutes.
 
 ```{python}
-# calculate difference between each message
-chat_data['time_diff'] = (
-    chat_data['timestamp']
-    .diff()
-    .fillna(pd.Timedelta(seconds=0))
-)
-chat_data['time_diff'] = (
-    chat_data['time_diff']
-    .dt.total_seconds()
-)
-
-# specify how long until message group becomes a new conversation
-conv_cutoff = 600
-
-# group dataframe into different conversations based on cutoff value
-chat_data['new_conv'] = chat_data['time_diff'] > conv_cutoff
-chat_data['conv_num'] = 'Conv ' + (
-    chat_data['new_conv']
-    .cumsum()
-    .astype(str)
-)
-
-# join together messages in the same coversation
-conversations = (
-    chat_data
-    .groupby('conv_num')
-    ['clean_content_rmstopwords']
-    .apply(lambda x: ' '.join(map(str, x)))
-    .str.strip()
-    .str.replace('\\s{2,}', ' ', regex=True)
-    .reset_index()
-)
+documents = prep.lda_getdocs(chat_data, 'clean_content', 'timestamp')
 ```
 
 Run LDA, where documents are the previously defined conversations.
 
 ```{python}
-documents = (
-    conversations['clean_content_rmstopwords']
-    .tolist()
-)
 texts = [doc.split() for doc in documents]
 dictionary = gs.corpora.Dictionary(texts)
 corpus = [dictionary.doc2bow(text) for text in texts]
