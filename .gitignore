@@ -3,4 +3,4 @@
 /databases
 /data
 /source_documents
-/modules/__pycache__
+**__pycache__

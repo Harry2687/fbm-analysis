@@ -5,6 +5,8 @@ format: html
 
 ```{python}
 import modules.preprocessing as prep
+import modules.lda.preprocessing as lda_prep
+import modules.lda.models as lda_models
 import gensim as gs
 ```
 
@@ -12,14 +14,14 @@ Import and clean data.
 
 ```{python}
 chat_data = prep.ms_import_data('data/the_office')
-chat_data = prep.lda_preprocess(chat_data, 'content', 'clean_content')
+chat_data = lda_prep.lda_preprocess(chat_data, 'content', 'clean_content')
 ```
 
 Count number of occurances of specified word by sender.
 
 ```{python}
 chat_data_with_stopwords = prep.ms_import_data('data/the_office')
-chat_data_with_stopwords = prep.lda_preprocess(chat_data_with_stopwords, 'content', 'clean_content', False)
+chat_data_with_stopwords = lda_prep.lda_preprocess(chat_data_with_stopwords, 'content', 'clean_content', False)
 word_count = prep.sender_wordcount(chat_data_with_stopwords, 'coc')
 word_count
 ```
@@ -27,76 +29,24 @@ word_count
 Split messages into conversations which are separated by at least 10 minutes.
 
 ```{python}
-documents = prep.lda_getdocs(chat_data, 'clean_content', 'timestamp')
+documents = lda_prep.lda_getdocs(chat_data, 'clean_content', 'timestamp')
 ```
 
 Run LDA, where documents are the previously defined conversations.
 
 ```{python}
-texts = [doc.split() for doc in documents]
-dictionary = gs.corpora.Dictionary(texts)
-corpus = [dictionary.doc2bow(text) for text in texts]
-ldamodel = gs.models.ldamodel.LdaModel(
-    corpus,
-    num_topics=5,
-    id2word=dictionary,
-    passes=20
-)
-for topic in ldamodel.print_topics(num_topics=10, num_words=10):
-    print(topic)
+model = lda_models.fbm_lda(documents)
+model.train_lda(5)
+model.print_topics()
 ```
 
 ```{python}
-ldamodel_coherence = gs.models.CoherenceModel(
-    model=ldamodel,
-    texts=texts,
-    dictionary=dictionary,
-    coherence='u_mass'
-)
-
-ldamodel_coherence.get_coherence()
+model.get_coherence()
 ```
 
 Hyperparameter tuning
 
 ```{python}
-n_topics_values = np.arange(2, 11, 1)
-
-tuning_results = pd.DataFrame(
-    columns=[
-        'n_topics',
-        'umass_coherence'
-    ]
-)
-
-start_time = time.time()
-for index in range(len(n_topics_values)):
-    n_topics = n_topics_values[index]
-
-    ldamodel = gs.models.ldamodel.LdaModel(
-        corpus=corpus,
-        num_topics=n_topics,
-        id2word=dictionary,
-        passes=20
-    )
-
-    ldamodel_coherence = gs.models.CoherenceModel(
-        model=ldamodel,
-        texts=texts,
-        dictionary=dictionary,
-        coherence='u_mass'
-    )
-
-    umass_coherence = ldamodel_coherence.get_coherence()
-
-    tuning_results.loc[index] = (
-        [n_topics] + 
-        [umass_coherence]
-    )
-end_time = time.time()
-execution_time = end_time - start_time
-
-tuning_results = tuning_results.sort_values('umass_coherence', ascending=False)
-
-tuning_results
+tuning = lda_models.tune_lda(documents)
+tuning_results = tuning.tune(2, 4, 1)
 ```
