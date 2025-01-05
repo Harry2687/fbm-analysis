@@ -57,7 +57,101 @@ custom_stopwords = [
     'wtf',
     'tbf',
     'ngl',
-    'm'
+    'm',
+    'good',
+    'time',
+    'think',
+    'probs',
+    'know',
+    'gay',
+    'tho',
+    'actually',
+    'pretty',
+    'people',
+    'doesnt',
+    'need',
+    'better',
+    'use',
+    'isnt',
+    'said',
+    'oh',
+    'shit',
+    'thing',
+    'cause',
+    'look',
+    'want',
+    'bad', 
+    'mean', 
+    'going', 
+    'maybe', 
+    'day', 
+    'bit', 
+    'theres',
+    'guys', 
+    'cool', 
+    'coz', 
+    'way', 
+    'tbh', 
+    'today', 
+    'wait',
+    'right', 
+    'noice', 
+    'literally', 
+    'anirudh', 
+    'retarded',
+    'legit',
+    'hes',
+    'lot',
+    'agreed',
+    'whats',
+    'year',
+    'played',
+    'wanna',
+    'getting',
+    'looks',
+    'af',
+    'cuz',
+    'probably',
+    'kinda',
+    'went',
+    'wont',
+    'ask',
+    'thought',
+    'pre',
+    'rn',
+    'fine',
+    'theyre',
+    'havent',
+    'basically',
+    'solid',
+    'ive',
+    'x',
+    'wasnt',
+    'okay',
+    'y',
+    'week',
+    'surely',
+    'things',
+    'saying',
+    'sounds',
+    'set',
+    'start',
+    'makes',
+    'lets',
+    'guess',
+    'ones',
+    'youre',
+    'apparently',
+    'rip',
+    'yes',
+    'bruh',
+    'anyways',
+    'gotta',
+    'send',
+    'tmr',
+    'wouldnt',
+    'times',
+    'btw'
 ]
 
 def remove_custom_stopwords(document: str, stopwords: list) -> str:
@@ -136,3 +230,20 @@ def lda_getdocs(dataframe: pd.DataFrame, content_col: str, ts_col: str, conv_cut
     documents = conversations[content_col].tolist()
 
     return documents
+
+def top_words(dataframe: pd.DataFrame) -> pd.DataFrame:
+    dataframe['word'] = (
+        dataframe['clean_content']
+        .str.split(' ')
+    )
+
+    df_wcount = dataframe[['sender_name', 'word']].explode('word')
+    df_wcount = (
+        df_wcount[df_wcount['word'] != '']
+        .groupby('word')
+        .count()
+        .rename(columns={'sender_name': 'count'})
+        .sort_values('count', ascending=False)
+    )
+
+    return df_wcount

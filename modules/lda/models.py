@@ -38,7 +38,7 @@ class fbm_lda:
         return coherence.get_coherence()
     
 class tune_lda(fbm_lda):
-    def tune(self, n_start, n_stop, step, sort: bool=False):
+    def tune(self, n_start, n_stop, step, sort: bool=False, show_progress: bool=False):
         n_topics_values = np.arange(n_start, n_stop, step)
 
         tuning_results = pd.DataFrame(
@@ -51,13 +51,16 @@ class tune_lda(fbm_lda):
         start_time = time.time()
         for index in range(len(n_topics_values)):
             n_topics = n_topics_values[index]
-            lda_model = self.train_lda(num_topics=n_topics)
+            self.train_lda(num_topics=n_topics)
             umass_coherence = self.get_coherence()
 
             tuning_results.loc[index] = (
                 [n_topics] + 
                 [umass_coherence]
             )
+
+            if show_progress:
+                print(f'Finished n_topics = {n_topics} with umass = {umass_coherence}')
         end_time = time.time()
         self.tuning_time = end_time - start_time
 
