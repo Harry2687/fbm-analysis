@@ -88,7 +88,8 @@ for size in chunk_sizes:
             query=query,
             db_file_path=db_path,
             context_size=context_size,
-            print_docs=True
+            print_docs=True,
+            model_name='llama3.1:8b'
         )
         print('\n')
 ```
