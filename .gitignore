@@ -1,7 +1,4 @@
 .DS_Store
-/.venv
-/databases
-/data
-/source_documents
+.venv
 **__pycache__
 __marimo__
