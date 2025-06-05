@@ -35,19 +35,20 @@ def _(mo):
 @app.cell
 def _(ChatFBM, os):
     chunk_sizes = [1000, 750, 500, 250]
-    chat = 'the_office'
-    for size in chunk_sizes:
-        model = ChatFBM()
-        db_path = f'databases/{chat}_vectordb_chunksize{size}'
-        overlap = int(0.1*size)
+    chats = ['the_office', 'fuck_harry_zhing']
+    for chat in chats:
+        for size in chunk_sizes:
+            model = ChatFBM()
+            db_path = f'databases/{chat}_vectordb_chunksize{size}'
+            overlap = int(0.1*size)
     
-        if not os.path.exists(db_path):
-            model.ingest(
-                file_path=f'source_documents/{chat}.txt',
-                db_path=db_path,
-                chunk_size=size,
-                chunk_overlap=overlap
-            )
+            if not os.path.exists(db_path):
+                model.ingest(
+                    file_path=f'source_documents/{chat}.txt',
+                    db_path=db_path,
+                    chunk_size=size,
+                    chunk_overlap=overlap
+                )
     return (chunk_sizes,)
 
 
@@ -62,7 +63,7 @@ def _(ChatFBM, chunk_sizes, os):
     chat = 'the_office'
     for size in chunk_sizes:
         db_path = f'databases/{chat}_vectordb_chunksize{size}'
-    
+
         if os.path.exists(db_path):
             model = ChatFBM()
             model.load_db(db_path)
