@@ -51,7 +51,7 @@ def _(rag_demo):
 @app.cell
 def _(rag_demo):
     rag_demo(
-        query='What is the overall tone of the conversation about clash of clans?',
+        query='What games does Harry play?',
         db_file_path='databases/the_office_vectordb_chunksize500',
         context_size=10,
         print_docs=False,
